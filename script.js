@@ -1,145 +1,299 @@
-window.onload = updateLineNumbers;
+let editor;
 
-let matches = [], current = 0;
+require.config({
+  paths: { vs: 'https://unpkg.com/monaco-editor@latest/min/vs' }
+});
 
-/* editor basics */
-function updateLineNumbers() {
+require(['vs/editor/editor.main'], function () {
 
-  const textarea = document.getElementById("jsonInput");
-  const lineNumbers = document.getElementById("lineNumbers");
+  monaco.editor.defineTheme('hackerTheme', {
+    base: 'vs-dark',
+    inherit: true,
+    rules: [
+      { token: '', foreground: '00FF66' },
+      { token: 'string', foreground: '00FF66' },
+      { token: 'number', foreground: '00FF66' },
+      { token: 'keyword', foreground: '00FF66' },
+      { token: 'delimiter', foreground: '00FF66' },
+      { token: 'type', foreground: '00FF66' }
+    ],
+    colors: {
+      'editor.background': '#000000',
+      'editor.foreground': '#00FF66',
+      'editorCursor.foreground': '#00FF66',
+      'editorLineNumber.foreground': '#007A33',
+      'editor.selectionBackground': '#003311',
+      'editor.inactiveSelectionBackground': '#001A0A'
+    }
+  });
 
-  const lines = textarea.value.split("\n").length;
+  editor = monaco.editor.create(document.getElementById('editor'), {
+    value: '',
+    language: 'json',
+    theme: 'hackerTheme',
+    automaticLayout: true,
+    folding: true,
+    fontFamily: "Consolas, monospace",
+    fontSize: 14
+  });
 
-  let nums = "";
-  for (let i = 1; i <= lines; i++) {
-    nums += i + "\n";
-  }
+  editor.onDidPaste(() => {
+    try {
+      const formatted = JSON.stringify(
+        JSON.parse(editor.getValue()),
+        null,
+        4
+      );
+      editor.setValue(formatted);
+      saveToHistory(formatted);
+      buildTree();
+      showStatus("JSON pasted, formatted and saved ✔", true);
+    } catch {
+      showStatus("Invalid JSON pasted ❌", false);
+    }
+  });
 
-  lineNumbers.innerText = nums;
 
-  /* keep same height as textarea */
-  lineNumbers.style.height = textarea.clientHeight + "px";
-}
+});
 
-function syncScroll() {
-  lineNumbers.scrollTop = jsonInput.scrollTop;
-  highlightLayer.scrollTop = jsonInput.scrollTop;
-}
+/* actions */
 
-/* JSON operations */
 function validateJSON() {
-
   const alertBox = document.getElementById("alertBox");
-
   try {
-    JSON.parse(jsonInput.value);
-
+    JSON.parse(editor.getValue());
     alertBox.className = "alertBox alert-success";
     alertBox.innerText = "JSON is valid ✔";
-    alertBox.style.display = "block";
-
   } catch (e) {
-
     alertBox.className = "alertBox alert-error";
     alertBox.innerText = "Invalid JSON ❌ : " + e.message;
-    alertBox.style.display = "block";
   }
+  alertBox.style.display = "block";
 }
-
-
-function showModal(text) {
-  modalText.innerText = text;
-  popupModal.style.display = "flex";
-}
-
-function closeModal() {
-  popupModal.style.display = "none";
-}
-
 
 function prettifyJSON() {
-  jsonInput.value = JSON.stringify(JSON.parse(jsonInput.value), null, 4);
-  updateLineNumbers();
+  const formatted = JSON.stringify(
+    JSON.parse(editor.getValue()), null, 4
+  );
+  editor.setValue(formatted);
 }
+
 function minifyJSON() {
-  jsonInput.value = JSON.stringify(JSON.parse(jsonInput.value));
-  updateLineNumbers();
+  editor.setValue(
+    JSON.stringify(JSON.parse(editor.getValue()))
+  );
 }
+
 function copyJSON() {
-  jsonInput.select(); document.execCommand("copy");
+  navigator.clipboard.writeText(editor.getValue());
 }
+
 function downloadJSON() {
-  const blob = new Blob([jsonInput.value], { type: "application/json" });
+  const blob = new Blob([editor.getValue()], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = "data.json";
   a.click();
 }
 
-/* file */
-function loadFile() { fileInput.click(); }
-function readFile(e) {
-  const reader = new FileReader();
-  reader.onload = x => {
-    jsonInput.value = x.target.result;
-    updateLineNumbers();
-  };
-  reader.readAsText(e.target.files[0]);
+function buildTree() {
+  try {
+    const json = JSON.parse(editor.getValue());
+    const container = document.getElementById("treeView");
+    container.innerHTML = "";
+    container.appendChild(createTreeNode(json));
+  } catch (e) {
+    alert("Invalid JSON");
+  }
 }
 
-/* search */
-function liveSearch() {
-  const key = searchInput.value;
-  matches = [];
-  if (!key) { highlightLayer.innerHTML = jsonInput.value; return; }
+function createTreeNode(data) {
 
-  const text = jsonInput.value;
-  let pos = text.indexOf(key);
-  while (pos != -1) { matches.push(pos); pos = text.indexOf(key, pos + key.length); }
-  matchCount.innerText = matches.length + " matches";
+  if (typeof data !== "object" || data === null) {
+    const span = document.createElement("span");
+    span.className = "value";
+    span.textContent = JSON.stringify(data);
+    return span;
+  }
 
-  highlightLayer.innerHTML =
-    text.replace(new RegExp(key, "gi"),
-      m => `<span class="highlight">${m}</span>`);
-}
-function nextMatch() { if (matches.length) selectMatch((current + 1) % matches.length); }
-function prevMatch() { if (matches.length) selectMatch((current - 1 + matches.length) % matches.length); }
-function selectMatch(i) {
-  current = i;
-  jsonInput.focus();
-  jsonInput.setSelectionRange(matches[i], matches[i] + searchInput.value.length);
-}
-function searchKey(e) { if (e.key === "Enter") nextMatch(); }
+  const wrapper = document.createElement("div");
 
-/* tree + folding */
-function generateTree() {
-  treeContainer.innerHTML = "";
-  treeContainer.appendChild(buildTree(JSON.parse(jsonInput.value)));
-}
+  const toggle = document.createElement("span");
+  toggle.textContent = "▼";
+  toggle.className = "toggle";
 
-function buildTree(obj) {
-  const div = document.createElement("div");
-  if (typeof obj === "object" && obj !== null) {
-    const toggle = document.createElement("span");
-    toggle.textContent = "▶ ";
-    const child = document.createElement("div");
-    toggle.onclick = () => child.style.display =
-      child.style.display === "none" ? "block" : "none";
-    div.append(toggle, child);
-    for (let k in obj) {
-      const node = document.createElement("div");
-      node.className = "node";
-      node.textContent = k + ": ";
-      node.appendChild(buildTree(obj[k]));
-      child.appendChild(node);
+  const children = document.createElement("div");
+  children.className = "node";
+
+  toggle.onclick = () => {
+    if (children.style.display === "none") {
+      children.style.display = "block";
+      toggle.textContent = "▼";
+    } else {
+      children.style.display = "none";
+      toggle.textContent = "▶";
     }
-  } else div.textContent = obj;
-  return div;
+  }
+
+  wrapper.appendChild(toggle);
+  wrapper.appendChild(document.createTextNode(Array.isArray(data) ? "[" : "{"));
+
+  for (let k in data) {
+    const row = document.createElement("div");
+
+    if (!Array.isArray(data)) {
+      const key = document.createElement("span");
+      key.className = "key";
+      key.textContent = `"${k}": `;
+      key.style.cursor = "pointer";
+      key.onclick = () => goToKey(k);
+      row.appendChild(key);
+    }
+
+    row.appendChild(createTreeNode(data[k]));
+    children.appendChild(row);
+  }
+
+  const close = document.createElement("div");
+  close.textContent = Array.isArray(data) ? "]" : "}";
+
+  wrapper.appendChild(children);
+  wrapper.appendChild(close);
+
+  return wrapper;
 }
 
-function clearText() { jsonInput.value = ""; updateLineNumbers(); }
+function goToKey(key) {
+  const model = editor.getModel();
+
+  const matches = model.findMatches(
+    `"${key}"`,
+    true,
+    false,
+    false,
+    null,
+    false
+  );
+
+  if (matches.length) {
+    editor.revealLineInCenter(matches[0].range.startLineNumber);
+    editor.setPosition({
+      lineNumber: matches[0].range.startLineNumber,
+      column: matches[0].range.startColumn
+    });
+    editor.focus();
+  }
+}
+
+let darkMode = true;
 
 function toggleTheme() {
-  document.body.classList.toggle("dark");
+
+  darkMode = !darkMode;
+
+  if (darkMode) {
+    document.body.classList.remove("light");
+    monaco.editor.setTheme('vs-dark');
+  } else {
+    document.body.classList.add("light");
+    monaco.editor.setTheme('vs');
+  }
 }
 
+function validateJSON() {
+  const alertBox = document.getElementById("alertBox");
+
+  try {
+    const json = editor.getValue();
+    JSON.parse(json);
+
+    saveToHistory(json);
+
+    alertBox.className = "alertBox alert-success";
+    alertBox.innerText = "JSON is valid ✔";
+
+  } catch (e) {
+    alertBox.className = "alertBox alert-error";
+    alertBox.innerText = "Invalid JSON ❌ : " + e.message;
+  }
+
+  alertBox.style.display = "block";
+}
+
+
+
+
+function saveToHistory(json) {
+
+  let history = JSON.parse(localStorage.getItem("jsonHistory") || "[]");
+
+  history.unshift({
+    data: json,
+    time: new Date().toLocaleString(),
+    size: (json.length / 1024).toFixed(2) + " KB"
+  });
+
+  history = history.slice(0, 20);
+
+  localStorage.setItem("jsonHistory", JSON.stringify(history));
+}
+
+function openHistory() {
+  const panel = document.querySelector(".historyPanel");
+  panel.style.display = "block";
+  renderHistory();
+}
+
+function toggleHistory() {
+  document.querySelector(".historyPanel").style.display = "none";
+}
+
+function renderHistory() {
+
+  const history = JSON.parse(localStorage.getItem("jsonHistory") || "[]");
+  const list = document.getElementById("historyList");
+  list.innerHTML = "";
+
+  history.forEach((item, index) => {
+
+    const div = document.createElement("div");
+    div.className = "historyItem";
+
+    div.innerHTML =
+      `<b>${item.time}</b><br>
+       Size: ${item.size}`;
+
+    div.onclick = () => {
+      editor.setValue(item.data);
+    };
+
+    list.appendChild(div);
+  });
+}
+
+
+
+function showStatus(msg, success) {
+  const alertBox = document.getElementById("alertBox");
+
+  alertBox.className = success
+    ? "alertBox alert-success"
+    : "alertBox alert-error";
+
+  alertBox.innerText = msg;
+  alertBox.style.display = "block";
+
+  setTimeout(() => alertBox.style.display = "none", 3000);
+}
+
+
+
+
+function clearHistory() {
+
+  if (!confirm("Clear all history?")) return;
+
+  localStorage.removeItem("jsonHistory");
+
+  document.getElementById("historyList").innerHTML = "";
+}

@@ -2,67 +2,50 @@
 <html>
 
 <head>
+  <meta charset="UTF-8">
   <title>JSON Formatter Pro</title>
-  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
   <div class="toolbar">
+    <button onclick="validateJSON()">Validate</button>
+    <button onclick="prettifyJSON()">Prettify</button>
+    <button onclick="minifyJSON()">Minify</button>
+    <button onclick="copyJSON()">Copy</button>
+    <button onclick="downloadJSON()">Download</button>
+    <button onclick="toggleTheme()">Toggle Theme</button>
+    <button onclick="openHistory()">History</button>
 
-    <div class="logo">JSON Formatter Pro</div>
 
-    <div class="nav-search">
-      <input id="searchInput" placeholder="Search JSON..." oninput="liveSearch()">
-      <button onclick="nextMatch()">Search</button>
-    </div>
-
-    <div class="nav-actions">
-      <button onclick="toggleTheme()">🌙</button>
-    </div>
-
+    <div id="alertBox" class="alertBox" style="display:none"></div>
   </div>
 
-
-  <div class="main">
-
-    <div class="editor">
-      <div id="lineNumbers" class="lines"></div>
-
-      <div class="editorWrapper">
-        <div id="highlightLayer" class="highlightLayer"></div>
-        <textarea id="jsonInput" oninput="updateLineNumbers();liveSearch();syncScroll()"
-          onscroll="syncScroll()"></textarea>
+  <div class="workspace">
+    <div id="editor"></div>
+    <div class="treePanel">
+      <div class="treeHeader">
+        JSON Explorer
+        <button onclick="buildTree()">Refresh</button>
       </div>
+      <div id="treeView"></div>
     </div>
+    <div class="historyPanel">
+      <div class="historyHeader">
+        History
+        <button onclick="clearHistory()">Clear</button>
 
-
-    <div class="panel">
-      <button onclick="validateJSON()">Validate</button>
-      <button onclick="prettifyJSON()">Prettify</button>
-      <button onclick="minifyJSON()">Minify</button>
-      <button onclick="copyJSON()">Copy</button>
-      <button onclick="downloadJSON()">Download</button>
-      <button onclick="loadFile()">Upload File</button>
-      <button onclick="generateTree()">Tree View</button>
-      <button onclick="clearText()">Clear</button>
-
-      <input type="file" id="fileInput" hidden onchange="readFile(event)">
-      <div id="alertBox" class="alertBox" style="display:none"></div>
+        <button onclick="toggleHistory()">Close</button>
+      </div>
+      <div id="historyList"></div>
     </div>
 
   </div>
 
-  <div id="treeContainer" class="tree"></div>
-  <div id="popupModal" class="modal">
-    <div class="modalContent">
-      <span class="closeBtn" onclick="closeModal()">✖</span>
-      <p id="modalText"></p>
-    </div>
-  </div>
-
+  <script src="https://unpkg.com/monaco-editor@latest/min/vs/loader.js"></script>
   <script src="script.js"></script>
+
 </body>
 
 </html>
