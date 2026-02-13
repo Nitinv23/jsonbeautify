@@ -16,6 +16,7 @@ body {
 
 .toolbar-left button {
   margin-right: 8px;
+
 }
 
 .toolbar-right {
@@ -29,6 +30,10 @@ body {
   border-radius: 6px;
   background: #111;
   color: #00FF66;
+}
+
+button {
+  cursor: pointer;
 }
 
 /* workspace */
